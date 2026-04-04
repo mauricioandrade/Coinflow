@@ -1,0 +1,30 @@
+# Dependencies
+node_modules
+
+# Environment variables — NEVER commit secrets
+.env
+.env.local
+.env.*.local
+
+# Prisma generated client
+/generated/prisma
+
+# Build output
+/dist
+/build
+
+# Coverage reports
+/coverage
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*

@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm --version)",
+      "Bash(npx @nestjs/cli --version)",
+      "Bash(npx @nestjs/cli new . --package-manager npm --skip-git --language typescript --strict)",
+      "Bash(cd /tmp)",
+      "Bash(npx @nestjs/cli new coinflow-tmp --package-manager npm --skip-git --language typescript --strict)",
+      "Bash(cp:*)",
+      "Bash(npm install:*)",
+      "Bash(npx prisma:*)",
+      "Bash(npx husky:*)",
+      "Bash(npx tsc:*)",
+      "Bash(git add:*)"
+    ]
+  }
+}

@@ -1,0 +1,322 @@
+// ============================================================
+// Coinflow — Prisma Schema
+// Security: All PKs/FKs use CUID (no sequential integers exposed).
+// Sensitive fields (e.g., encryptedCredentials) are stored encrypted
+// at the application layer (AES-256-GCM) before reaching the DB.
+// Monetary values are stored as BigInt (cents) to avoid
+// floating-point drift.
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Connection URL is configured in prisma.config.ts (Prisma v7+)
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Enums ──────────────────────────────────────────────────
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+  TRANSFER
+}
+
+enum TransactionStatus {
+  PENDING
+  CONFIRMED
+  RECONCILED
+  CANCELLED
+}
+
+enum AccountType {
+  CHECKING
+  SAVINGS
+  CREDIT_CARD
+  INVESTMENT
+  WALLET
+}
+
+enum BudgetPeriod {
+  MONTHLY
+  YEARLY
+}
+
+enum GoalStatus {
+  ACTIVE
+  PAUSED
+  COMPLETED
+  CANCELLED
+}
+
+enum BankConnectionStatus {
+  PENDING
+  ACTIVE
+  EXPIRED
+  REVOKED
+  ERROR
+}
+
+enum WebhookEventStatus {
+  RECEIVED
+  PROCESSING
+  PROCESSED
+  FAILED
+}
+
+// ─── User ───────────────────────────────────────────────────
+
+model User {
+  id        String    @id @default(cuid())
+  email     String    @unique
+  name      String
+  /// Bcrypt hash — NEVER expose via DTO/serializer
+  password  String
+  /// Soft-delete: set deletedAt instead of removing the row
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  accounts        Account[]
+  categories      Category[]
+  budgets         Budget[]
+  goals           Goal[]
+  refreshTokens   RefreshToken[]
+  bankConnections BankConnection[]
+
+  @@index([email])
+  @@map("users")
+}
+
+// ─── RefreshToken ────────────────────────────────────────────
+
+model RefreshToken {
+  id        String    @id @default(cuid())
+  /// SHA-256 hash of the raw token — never store raw tokens
+  tokenHash String    @unique
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+  ipAddress String?
+  userAgent String?
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+// ─── Account ─────────────────────────────────────────────────
+
+model Account {
+  id               String      @id @default(cuid())
+  userId           String
+  user             User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name             String
+  type             AccountType
+  /// Stored in cents (BigInt) to avoid floating-point issues
+  balanceCents     BigInt      @default(0)
+  currency         String      @default("BRL") @db.VarChar(3)
+  isActive         Boolean     @default(true)
+  /// If linked to Open Finance — references BankConnection
+  bankConnectionId String?
+  bankConnection   BankConnection? @relation(fields: [bankConnectionId], references: [id])
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  transactionsFrom Transaction[] @relation("FromAccount")
+  transactionsTo   Transaction[] @relation("ToAccount")
+
+  @@index([userId])
+  @@map("accounts")
+}
+
+// ─── Category ────────────────────────────────────────────────
+
+model Category {
+  id        String     @id @default(cuid())
+  userId    String
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  icon      String?
+  color     String?    @db.VarChar(7)
+  parentId  String?
+  parent    Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children  Category[] @relation("CategoryHierarchy")
+  isDefault Boolean    @default(false)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  transactions Transaction[]
+  budgets      Budget[]
+
+  @@unique([userId, name])
+  @@index([userId])
+  @@map("categories")
+}
+
+// ─── Transaction ─────────────────────────────────────────────
+
+model Transaction {
+  id          String            @id @default(cuid())
+  accountId   String
+  account     Account           @relation("FromAccount", fields: [accountId], references: [id])
+  /// Destination account for TRANSFER type
+  toAccountId String?
+  toAccount   Account?          @relation("ToAccount", fields: [toAccountId], references: [id])
+  categoryId  String?
+  category    Category?         @relation(fields: [categoryId], references: [id])
+  type        TransactionType
+  status      TransactionStatus @default(PENDING)
+  /// Amount in cents to avoid floating-point drift
+  amountCents BigInt
+  currency    String            @default("BRL") @db.VarChar(3)
+  description String?
+  notes       String?
+  /// Date the transaction occurred (not when it was recorded)
+  occurredAt  DateTime
+  /// Reference to original Open Finance transaction — unique for deduplication
+  externalRef String?           @unique
+  isRecurring Boolean           @default(false)
+  recurringId String?
+  recurring   RecurringRule?    @relation(fields: [recurringId], references: [id])
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@index([accountId])
+  @@index([categoryId])
+  @@index([occurredAt])
+  @@index([status])
+  @@map("transactions")
+}
+
+// ─── RecurringRule ───────────────────────────────────────────
+
+model RecurringRule {
+  id          String          @id @default(cuid())
+  description String
+  amountCents BigInt
+  type        TransactionType
+  categoryId  String?
+  accountId   String
+  /// DAILY | WEEKLY | MONTHLY | YEARLY
+  frequency   String
+  startDate   DateTime
+  endDate     DateTime?
+  nextDueAt   DateTime
+  isActive    Boolean         @default(true)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  transactions Transaction[]
+
+  @@map("recurring_rules")
+}
+
+// ─── Budget ──────────────────────────────────────────────────
+
+model Budget {
+  id          String       @id @default(cuid())
+  userId      String
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  categoryId  String
+  category    Category     @relation(fields: [categoryId], references: [id])
+  period      BudgetPeriod @default(MONTHLY)
+  /// Budget ceiling in cents
+  limitCents  BigInt
+  /// First day of the budget period (e.g. 2024-03-01 for March 2024)
+  periodStart DateTime
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@unique([userId, categoryId, periodStart])
+  @@index([userId])
+  @@map("budgets")
+}
+
+// ─── Goal ────────────────────────────────────────────────────
+
+model Goal {
+  id              String     @id @default(cuid())
+  userId          String
+  user            User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name            String
+  description     String?
+  /// Target amount in cents
+  targetCents     BigInt
+  /// Current accumulated amount in cents
+  currentCents    BigInt     @default(0)
+  status          GoalStatus @default(ACTIVE)
+  targetDate      DateTime?
+  /// Linked investment/savings account (optional)
+  linkedAccountId String?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  contributions GoalContribution[]
+
+  @@index([userId])
+  @@map("goals")
+}
+
+// ─── GoalContribution ────────────────────────────────────────
+
+model GoalContribution {
+  id            String   @id @default(cuid())
+  goalId        String
+  goal          Goal     @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  amountCents   BigInt
+  notes         String?
+  contributedAt DateTime @default(now())
+
+  @@index([goalId])
+  @@map("goal_contributions")
+}
+
+// ─── BankConnection (Open Finance) ───────────────────────────
+
+model BankConnection {
+  id              String               @id @default(cuid())
+  userId          String
+  user            User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  institutionId   String
+  institutionName String
+  status          BankConnectionStatus @default(PENDING)
+  /// AES-256-GCM encrypted JSON blob: { accessToken, refreshToken, consentId }
+  /// Storage format: "<hex_iv>:<hex_authtag>:<hex_ciphertext>"
+  /// NEVER log or expose this field
+  encryptedCredentials String
+  consentExpiresAt     DateTime?
+  lastSyncAt           DateTime?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  accounts      Account[]
+  webhookEvents WebhookEvent[]
+
+  @@index([userId])
+  @@map("bank_connections")
+}
+
+// ─── WebhookEvent (Open Finance inbound) ─────────────────────
+
+model WebhookEvent {
+  id               String             @id @default(cuid())
+  bankConnectionId String?
+  bankConnection   BankConnection?    @relation(fields: [bankConnectionId], references: [id])
+  eventType        String
+  status           WebhookEventStatus @default(RECEIVED)
+  /// Raw payload stored for replay/audit — do NOT log this directly
+  rawPayload       Json
+  /// HMAC-SHA256 signature from the provider header (for verification)
+  signature        String?
+  processedAt      DateTime?
+  errorMessage     String?
+  receivedAt       DateTime           @default(now())
+
+  @@index([bankConnectionId])
+  @@index([status])
+  @@map("webhook_events")
+}
