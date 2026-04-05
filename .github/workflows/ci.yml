@@ -1,0 +1,165 @@
+# ============================================================
+# Coinflow — Continuous Integration Pipeline
+#
+# Triggers:
+#   - push to main or develop
+#   - any pull_request targeting main or develop
+#
+# Jobs (sequential):
+#   1. lint-and-unit  — linter + unit tests (no DB required)
+#   2. e2e            — E2E tests against a real PostgreSQL instance
+#
+# Required GitHub Secrets (Settings → Secrets and variables → Actions):
+#   Defaults work for CI without secrets, but production pipelines
+#   should set these to avoid using test-only values in logs:
+#   - TEST_ENCRYPTION_KEY   (64 hex chars, 32 bytes)
+#   - TEST_JWT_SECRET        (≥ 64 chars)
+#   - TEST_JWT_REFRESH_SECRET (≥ 64 chars)
+# ============================================================
+
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+      - develop
+
+# Cancel in-progress runs on the same branch when a new push arrives
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── Job 1: Lint + Unit Tests ─────────────────────────────────────────────
+  lint-and-unit:
+    name: 🔍 Lint & Unit Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Generates the Prisma TypeScript client from schema.prisma.
+      # Does NOT require a database connection — reads schema only.
+      - name: Generate Prisma Client
+        run: npm run prisma:generate
+
+      # ESLint with --fix: auto-corrects fixable issues.
+      # Exits non-zero if non-fixable violations remain.
+      - name: Run linter
+        run: npm run lint
+
+      # Jest unit tests — setupFiles loads test/setup-unit.ts
+      # which sets all required process.env vars for unit tests.
+      - name: Run unit tests
+        run: npm test -- --forceExit --ci
+        env:
+          NODE_ENV: test
+          # Unit tests mock ConfigService, so these are fallback values only.
+          # Override via GitHub Secrets for tighter CI hygiene.
+          ENCRYPTION_KEY: ${{ secrets.TEST_ENCRYPTION_KEY || 'a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90' }}
+          JWT_SECRET: ${{ secrets.TEST_JWT_SECRET || 'test_jwt_secret_for_unit_tests_only_64chars_long_padding_padding' }}
+          JWT_REFRESH_SECRET: ${{ secrets.TEST_JWT_REFRESH_SECRET || 'test_refresh_secret_for_unit_tests_only_64chars_long_padding_xx' }}
+
+  # ── Job 2: E2E Tests (requires PostgreSQL) ───────────────────────────────
+  e2e:
+    name: 🕵️ E2E Tests
+    runs-on: ubuntu-latest
+    needs: lint-and-unit # Only run if lint + unit tests pass
+
+    # ── PostgreSQL service container ────────────────────────────────────────
+    # Spun up before the job steps. Health check ensures it is ready
+    # before Prisma tries to connect.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: coinflow_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    # DATABASE_URL is injected here so all steps in this job inherit it.
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/coinflow_test?schema=public
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # ── Write .env.test ────────────────────────────────────────────────
+      # ConfigModule.forRoot({ envFilePath: '.env.test' }) in the E2E test
+      # modules reads this file. In CI, .env.test is gitignored and must be
+      # created here from known-safe test-only values.
+      #
+      # SECURITY NOTE: These are non-production test secrets.
+      # For audited environments, replace inline values with GitHub Secrets.
+      - name: Create .env.test
+        run: |
+          cat > .env.test << 'ENVEOF'
+          NODE_ENV=test
+          PORT=3001
+          APP_URL=http://localhost:3001
+          DATABASE_URL=postgresql://postgres:postgres@localhost:5432/coinflow_test?schema=public
+          JWT_SECRET=test_jwt_secret_for_unit_tests_only_64chars_long_padding_padding
+          JWT_EXPIRES_IN=15m
+          JWT_REFRESH_SECRET=test_refresh_secret_for_unit_tests_only_64chars_long_padding_xx
+          JWT_REFRESH_EXPIRES_IN=7d
+          ENCRYPTION_KEY=a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90
+          CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:3001
+          THROTTLE_TTL=60
+          THROTTLE_LIMIT=100
+          HONEYPOT_BLOCK_DURATION_MS=3600000
+          ENVEOF
+
+      - name: Generate Prisma Client
+        run: npm run prisma:generate
+
+      # ── Database setup ──────────────────────────────────────────────────
+      # prisma db push applies the current schema.prisma to the test database
+      # without requiring migration files. Used here because the project has
+      # not yet run `prisma migrate dev` to generate its first migration.
+      #
+      # When migration files exist in prisma/migrations/, replace this step
+      # with: npx prisma migrate deploy
+      - name: Push Prisma schema to test database
+        run: npx prisma db push --accept-data-loss
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/coinflow_test?schema=public
+
+      # ── E2E test run ────────────────────────────────────────────────────
+      # Runs test/security/*.e2e-spec.ts via test/jest-e2e.json config.
+      # Uses Supertest + NestJS TestingModule — no running server needed.
+      - name: Run E2E tests
+        run: npm run test:e2e -- --forceExit
+        env:
+          NODE_ENV: test
