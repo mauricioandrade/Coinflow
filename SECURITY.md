@@ -98,9 +98,21 @@ Raw refresh tokens are never stored. Only their `SHA-256` hash is persisted for 
 | `Referrer-Policy` | `no-referrer` |
 | `Cross-Origin-Opener-Policy` | `same-origin` |
 
+### Trust Proxy
+
+`main.ts` configures Express with `trust proxy = 1`. This tells Express to trust the rightmost IP in `X-Forwarded-For` added by exactly one upstream proxy (e.g., Cloudflare). As a result:
+
+- `req.ip` is set to the **real client IP** — not the proxy IP.
+- Clients cannot forge their IP by injecting custom `X-Forwarded-For` headers (Express discards client-supplied values when `trust proxy` is set).
+- `HoneypotMiddleware` reads `req.ip` exclusively — never parses `X-Forwarded-For` manually.
+
+**Adjust the proxy depth** (`0` for direct, `1` for one proxy, `2` for two, etc.) to match your infrastructure. Behind Cloudflare only: `1` is correct.
+
 ### CORS
 
 Allowed origins are read **exclusively** from `CORS_ALLOWED_ORIGINS` in `.env`. No origin is hardcoded in source. In production, this list must contain only the exact domain(s) of your frontend.
+
+Requests with **no `Origin` header** (non-browser requests: mobile apps, server-to-server calls, CLI tools) are always allowed. This is safe because they cannot be CSRF'd — browsers always include an `Origin` header on cross-origin requests. This behaviour is **identical across all environments** (development, staging, production).
 
 ---
 

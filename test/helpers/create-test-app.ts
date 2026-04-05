@@ -2,12 +2,12 @@ import {
   ClassSerializerInterceptor,
   INestApplication,
   ValidationPipe,
-} from '@nestjs/common';
-import { Reflector } from '@nestjs/core';
-import { TestingModule } from '@nestjs/testing';
-import { ConfigService } from '@nestjs/config';
-import helmet from 'helmet';
-import { JwtAuthGuard } from '../../src/common/guards/jwt-auth.guard';
+} from "@nestjs/common";
+import { Reflector } from "@nestjs/core";
+import { TestingModule } from "@nestjs/testing";
+import { ConfigService } from "@nestjs/config";
+import helmet from "helmet";
+import { JwtAuthGuard } from "../../src/common/guards/jwt-auth.guard";
 
 /**
  * Applies the exact same security configuration that main.ts applies
@@ -23,12 +23,11 @@ import { JwtAuthGuard } from '../../src/common/guards/jwt-auth.guard';
  *   const app = await applySecuritySetup(moduleFixture.createNestApplication());
  *   await app.init();
  */
-export async function applySecuritySetup(app: INestApplication): Promise<INestApplication> {
+export function applySecuritySetup(app: INestApplication): INestApplication {
   const config = app.get(ConfigService);
-  const nodeEnv = config.get<string>('NODE_ENV') ?? 'development';
-  const rawOrigins = config.get<string>('CORS_ALLOWED_ORIGINS') ?? '';
+  const rawOrigins = config.get<string>("CORS_ALLOWED_ORIGINS") ?? "";
   const allowedOrigins = rawOrigins
-    .split(',')
+    .split(",")
     .map((o) => o.trim())
     .filter(Boolean);
 
@@ -44,31 +43,36 @@ export async function applySecuritySetup(app: INestApplication): Promise<INestAp
         },
       },
       crossOriginEmbedderPolicy: true,
-      crossOriginOpenerPolicy: { policy: 'same-origin' },
-      crossOriginResourcePolicy: { policy: 'same-origin' },
+      crossOriginOpenerPolicy: { policy: "same-origin" },
+      crossOriginResourcePolicy: { policy: "same-origin" },
       hidePoweredBy: true,
     }),
   );
 
   // ── CORS ─────────────────────────────────────────────────────────────────
   app.enableCors({
-    origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
-      if (!origin && nodeEnv !== 'production') {
+    origin: (
+      origin: string | undefined,
+      callback: (err: Error | null, allow?: boolean) => void,
+    ) => {
+      // No Origin = not a browser request. Allow without CORS headers.
+      // Behaviour is identical in all environments (mirrors main.ts fix).
+      if (!origin) {
         return callback(null, true);
       }
-      if (origin && allowedOrigins.includes(origin)) {
+      if (allowedOrigins.includes(origin)) {
         return callback(null, true);
       }
       return callback(new Error(`CORS: origin '${origin}' not allowed`), false);
     },
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
     credentials: true,
     maxAge: 86400,
   });
 
   // ── Global prefix ────────────────────────────────────────────────────────
-  app.setGlobalPrefix('api/v1');
+  app.setGlobalPrefix("api/v1");
 
   // ── Validation ───────────────────────────────────────────────────────────
   app.useGlobalPipes(
@@ -95,7 +99,7 @@ export async function initTestApp(
   moduleFixture: TestingModule,
 ): Promise<INestApplication> {
   const app = moduleFixture.createNestApplication();
-  await applySecuritySetup(app);
+  applySecuritySetup(app);
   await app.init();
   return app;
 }

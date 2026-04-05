@@ -1,6 +1,6 @@
-import { Injectable, NestMiddleware, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { Request, Response, NextFunction } from 'express';
+import { Injectable, NestMiddleware, Logger } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { Request, Response, NextFunction } from "express";
 
 /**
  * HoneypotMiddleware — traps automated scanners and attackers.
@@ -31,29 +31,30 @@ export class HoneypotMiddleware implements NestMiddleware {
    * Extend this list as needed.
    */
   private static readonly HONEYPOT_PATHS = new Set([
-    '/api/v1/wp-admin',
-    '/wp-admin',
-    '/wp-login.php',
-    '/admin',
-    '/administrator',
-    '/phpmyadmin',
-    '/phpMyAdmin',
-    '/xmlrpc.php',
-    '/.env',
-    '/.git/config',
-    '/actuator',
-    '/actuator/health',
-    '/api/v1/config',
-    '/api/v1/debug',
-    '/api/v1/test',
-    '/api/v1/users/admin',
-    '/console',
-    '/manager/html',
-    '/server-status',
+    "/api/v1/wp-admin",
+    "/wp-admin",
+    "/wp-login.php",
+    "/admin",
+    "/administrator",
+    "/phpmyadmin",
+    "/phpMyAdmin",
+    "/xmlrpc.php",
+    "/.env",
+    "/.git/config",
+    "/actuator",
+    "/actuator/health",
+    "/api/v1/config",
+    "/api/v1/debug",
+    "/api/v1/test",
+    "/api/v1/users/admin",
+    "/console",
+    "/manager/html",
+    "/server-status",
   ]);
 
   constructor(private readonly config: ConfigService) {
-    this.blockDurationMs = this.config.get<number>('HONEYPOT_BLOCK_DURATION_MS') ?? 3_600_000;
+    this.blockDurationMs =
+      this.config.get<number>("HONEYPOT_BLOCK_DURATION_MS") ?? 3_600_000;
   }
 
   use(req: Request, res: Response, next: NextFunction): void {
@@ -65,7 +66,7 @@ export class HoneypotMiddleware implements NestMiddleware {
     if (blockExpiry !== undefined) {
       if (Date.now() < blockExpiry) {
         this.logger.warn(`Blocked IP attempted access: ip=${ip} path=${path}`);
-        res.status(403).json({ statusCode: 403, message: 'Forbidden' });
+        res.status(403).json({ statusCode: 403, message: "Forbidden" });
         return;
       }
       // Block expired — remove it
@@ -83,7 +84,7 @@ export class HoneypotMiddleware implements NestMiddleware {
       );
 
       // Respond with 404 — do not reveal this is a honeypot
-      res.status(404).json({ statusCode: 404, message: 'Not Found' });
+      res.status(404).json({ statusCode: 404, message: "Not Found" });
       return;
     }
 
@@ -91,11 +92,16 @@ export class HoneypotMiddleware implements NestMiddleware {
   }
 
   private resolveIp(req: Request): string {
-    // Respect X-Forwarded-For only if behind a trusted proxy
-    const forwarded = req.headers['x-forwarded-for'];
-    if (typeof forwarded === 'string') {
-      return forwarded.split(',')[0].trim();
-    }
-    return req.socket?.remoteAddress ?? 'unknown';
+    // req.ip is set by Express based on the `trust proxy` setting in main.ts.
+    // When trust proxy = 1, Express reads the last entry added by the trusted
+    // proxy from X-Forwarded-For, preventing clients from forging their IP.
+    //
+    // Do NOT manually parse X-Forwarded-For here — that allows any client to
+    // spoof arbitrary IPs and bypass the honeypot block list.
+    return (
+      (req as Request & { ip?: string }).ip ??
+      req.socket?.remoteAddress ??
+      "unknown"
+    );
   }
 }
