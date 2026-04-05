@@ -1,4 +1,4 @@
-import { SetMetadata } from '@nestjs/common';
+import { SetMetadata } from "@nestjs/common";
 
 /**
  * @Public() — marks a route as publicly accessible (no JWT required).
@@ -12,5 +12,5 @@ import { SetMetadata } from '@nestjs/common';
  * The JwtAuthGuard checks for this metadata before enforcing authentication.
  * Every other route is private by default.
  */
-export const IS_PUBLIC_KEY = 'isPublic';
+export const IS_PUBLIC_KEY = "isPublic";
 export const Public = () => SetMetadata(IS_PUBLIC_KEY, true);

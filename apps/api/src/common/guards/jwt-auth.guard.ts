@@ -1,7 +1,11 @@
-import { ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
-import { Reflector } from '@nestjs/core';
-import { AuthGuard } from '@nestjs/passport';
-import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
+import {
+  ExecutionContext,
+  Injectable,
+  UnauthorizedException,
+} from "@nestjs/common";
+import { Reflector } from "@nestjs/core";
+import { AuthGuard } from "@nestjs/passport";
+import { IS_PUBLIC_KEY } from "../decorators/public.decorator";
 
 /**
  * JwtAuthGuard — applied globally in main.ts.
@@ -11,7 +15,7 @@ import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
  * design: a missing guard is a security incident; a missing @Public() is not.
  */
 @Injectable()
-export class JwtAuthGuard extends AuthGuard('jwt') {
+export class JwtAuthGuard extends AuthGuard("jwt") {
   constructor(private readonly reflector: Reflector) {
     super();
   }
@@ -31,7 +35,7 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
 
   handleRequest<TUser>(err: Error, user: TUser): TUser {
     if (err || !user) {
-      throw err ?? new UnauthorizedException('Authentication required.');
+      throw err ?? new UnauthorizedException("Authentication required.");
     }
     return user;
   }

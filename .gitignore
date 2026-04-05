@@ -1,30 +1,48 @@
-# Dependencies
+# ── Dependencies ──────────────────────────────────────────────────────────────
 node_modules
 
-# Environment variables — NEVER commit secrets
+# ── Environment variables — NEVER commit secrets ──────────────────────────────
 .env
 .env.local
 .env.*.local
 
-# Prisma generated client
-/generated/prisma
+# ── Build output ───────────────────────────────────────────────────────────────
+/apps/api/dist
+/apps/api/build
+/apps/web/.next
+/apps/web/out
+/apps/web/build
 
-# Build output
-/dist
-/build
+# ── Prisma generated client ────────────────────────────────────────────────────
+/apps/api/generated/prisma
 
-# Coverage reports
-/coverage
+# ── Coverage reports ───────────────────────────────────────────────────────────
+/apps/api/coverage
+/apps/web/coverage
 
-# Editor
+# ── TypeScript incremental build ───────────────────────────────────────────────
+*.tsbuildinfo
+next-env.d.ts
+
+# ── Playwright ─────────────────────────────────────────────────────────────────
+/apps/web/playwright-report
+/apps/web/test-results
+
+# ── Editor ────────────────────────────────────────────────────────────────────
 .vscode/
 .idea/
 *.swp
 
-# OS
+# ── OS ────────────────────────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
 
-# Logs
+# ── Logs ──────────────────────────────────────────────────────────────────────
 *.log
 npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ── Misc ──────────────────────────────────────────────────────────────────────
+*.pem
+.vercel

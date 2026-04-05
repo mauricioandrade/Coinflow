@@ -1,11 +1,11 @@
-import { Injectable, InternalServerErrorException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { Injectable, InternalServerErrorException } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import {
   createCipheriv,
   createDecipheriv,
   randomBytes,
   createHash,
-} from 'node:crypto';
+} from "node:crypto";
 
 /**
  * EncryptionService — AES-256-GCM symmetric encryption for sensitive data
@@ -23,20 +23,20 @@ import {
 @Injectable()
 export class EncryptionService {
   private readonly key: Buffer;
-  private readonly ALGORITHM = 'aes-256-gcm' as const;
+  private readonly ALGORITHM = "aes-256-gcm" as const;
   private readonly IV_BYTES = 12;
   private readonly AUTH_TAG_BYTES = 16;
 
   constructor(private readonly config: ConfigService) {
-    const hexKey = this.config.get<string>('ENCRYPTION_KEY');
+    const hexKey = this.config.get<string>("ENCRYPTION_KEY");
 
     if (!hexKey || hexKey.length !== 64) {
       throw new InternalServerErrorException(
-        'ENCRYPTION_KEY must be exactly 64 hex characters (32 bytes).',
+        "ENCRYPTION_KEY must be exactly 64 hex characters (32 bytes).",
       );
     }
 
-    this.key = Buffer.from(hexKey, 'hex');
+    this.key = Buffer.from(hexKey, "hex");
   }
 
   /**
@@ -50,13 +50,17 @@ export class EncryptionService {
     });
 
     const encrypted = Buffer.concat([
-      cipher.update(plaintext, 'utf8'),
+      cipher.update(plaintext, "utf8"),
       cipher.final(),
     ]);
 
     const authtag = cipher.getAuthTag();
 
-    return [iv.toString('hex'), authtag.toString('hex'), encrypted.toString('hex')].join(':');
+    return [
+      iv.toString("hex"),
+      authtag.toString("hex"),
+      encrypted.toString("hex"),
+    ].join(":");
   }
 
   /**
@@ -64,26 +68,29 @@ export class EncryptionService {
    * Throws if the ciphertext is tampered (GCM auth tag mismatch).
    */
   decrypt(ciphertext: string): string {
-    const parts = ciphertext.split(':');
+    const parts = ciphertext.split(":");
 
     if (parts.length !== 3) {
-      throw new InternalServerErrorException('Invalid ciphertext format.');
+      throw new InternalServerErrorException("Invalid ciphertext format.");
     }
 
     const [ivHex, authtagHex, encryptedHex] = parts;
 
-    const iv = Buffer.from(ivHex, 'hex');
-    const authtag = Buffer.from(authtagHex, 'hex');
-    const encrypted = Buffer.from(encryptedHex, 'hex');
+    const iv = Buffer.from(ivHex, "hex");
+    const authtag = Buffer.from(authtagHex, "hex");
+    const encrypted = Buffer.from(encryptedHex, "hex");
 
     const decipher = createDecipheriv(this.ALGORITHM, this.key, iv, {
       authTagLength: this.AUTH_TAG_BYTES,
     });
     decipher.setAuthTag(authtag);
 
-    const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()]);
+    const decrypted = Buffer.concat([
+      decipher.update(encrypted),
+      decipher.final(),
+    ]);
 
-    return decrypted.toString('utf8');
+    return decrypted.toString("utf8");
   }
 
   /**
@@ -91,6 +98,6 @@ export class EncryptionService {
    * The hash is one-way — use this for lookup, never for decryption.
    */
   hashToken(token: string): string {
-    return createHash('sha256').update(token).digest('hex');
+    return createHash("sha256").update(token).digest("hex");
   }
 }

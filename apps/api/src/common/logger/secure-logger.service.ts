@@ -1,4 +1,4 @@
-import { ConsoleLogger, Injectable, LogLevel } from '@nestjs/common';
+import { ConsoleLogger, Injectable } from "@nestjs/common";
 
 /**
  * SecureLogger — drops-in for NestJS's default ConsoleLogger.
@@ -17,29 +17,29 @@ export class SecureLogger extends ConsoleLogger {
    * Add more patterns as needed.
    */
   private static readonly SENSITIVE_KEYS = new Set([
-    'password',
-    'passwordhash',
-    'hash',
-    'tokenhash',
-    'accesstoken',
-    'refreshtoken',
-    'token',
-    'secret',
-    'encryptedcredentials',
-    'encryptionkey',
-    'authorization',
-    'cookie',
-    'cvv',
-    'cardnumber',
-    'ssn',
-    'cpf',
-    'apikey',
-    'api_key',
-    'privatekey',
-    'private_key',
+    "password",
+    "passwordhash",
+    "hash",
+    "tokenhash",
+    "accesstoken",
+    "refreshtoken",
+    "token",
+    "secret",
+    "encryptedcredentials",
+    "encryptionkey",
+    "authorization",
+    "cookie",
+    "cvv",
+    "cardnumber",
+    "ssn",
+    "cpf",
+    "apikey",
+    "api_key",
+    "privatekey",
+    "private_key",
   ]);
 
-  private static readonly REDACTED = '[REDACTED]';
+  private static readonly REDACTED = "[REDACTED]";
 
   /**
    * Masks a single value: recurses into objects/arrays, sanitizes strings
@@ -48,7 +48,7 @@ export class SecureLogger extends ConsoleLogger {
   private maskValue(value: unknown): unknown {
     if (value === null || value === undefined) return value;
 
-    if (typeof value === 'string') {
+    if (typeof value === "string") {
       // Mask JWT-shaped strings (three base64url segments)
       if (/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(value)) {
         return SecureLogger.REDACTED;
@@ -68,14 +68,16 @@ export class SecureLogger extends ConsoleLogger {
       return value.map((item) => this.maskValue(item));
     }
 
-    if (typeof value === 'object') {
+    if (typeof value === "object") {
       return this.sanitizeObject(value as Record<string, unknown>);
     }
 
     return value;
   }
 
-  private sanitizeObject(obj: Record<string, unknown>): Record<string, unknown> {
+  private sanitizeObject(
+    obj: Record<string, unknown>,
+  ): Record<string, unknown> {
     const sanitized: Record<string, unknown> = {};
 
     for (const [key, value] of Object.entries(obj)) {
@@ -91,8 +93,8 @@ export class SecureLogger extends ConsoleLogger {
 
   private sanitizeMessages(messages: unknown[]): unknown[] {
     return messages.map((msg) => {
-      if (typeof msg === 'string') return msg;
-      if (typeof msg === 'object' && msg !== null) {
+      if (typeof msg === "string") return msg;
+      if (typeof msg === "object" && msg !== null) {
         return this.sanitizeObject(msg as Record<string, unknown>);
       }
       return msg;
@@ -100,24 +102,47 @@ export class SecureLogger extends ConsoleLogger {
   }
 
   override log(message: unknown, ...optionalParams: unknown[]): void {
-    super.log(...(this.sanitizeMessages([message, ...optionalParams]) as [unknown, ...unknown[]]));
+    super.log(
+      ...(this.sanitizeMessages([message, ...optionalParams]) as [
+        unknown,
+        ...unknown[],
+      ]),
+    );
   }
 
   override warn(message: unknown, ...optionalParams: unknown[]): void {
-    super.warn(...(this.sanitizeMessages([message, ...optionalParams]) as [unknown, ...unknown[]]));
+    super.warn(
+      ...(this.sanitizeMessages([message, ...optionalParams]) as [
+        unknown,
+        ...unknown[],
+      ]),
+    );
   }
 
   override error(message: unknown, ...optionalParams: unknown[]): void {
-    super.error(...(this.sanitizeMessages([message, ...optionalParams]) as [unknown, ...unknown[]]));
+    super.error(
+      ...(this.sanitizeMessages([message, ...optionalParams]) as [
+        unknown,
+        ...unknown[],
+      ]),
+    );
   }
 
   override debug(message: unknown, ...optionalParams: unknown[]): void {
-    super.debug(...(this.sanitizeMessages([message, ...optionalParams]) as [unknown, ...unknown[]]));
+    super.debug(
+      ...(this.sanitizeMessages([message, ...optionalParams]) as [
+        unknown,
+        ...unknown[],
+      ]),
+    );
   }
 
   override verbose(message: unknown, ...optionalParams: unknown[]): void {
     super.verbose(
-      ...(this.sanitizeMessages([message, ...optionalParams]) as [unknown, ...unknown[]]),
+      ...(this.sanitizeMessages([message, ...optionalParams]) as [
+        unknown,
+        ...unknown[],
+      ]),
     );
   }
 }
