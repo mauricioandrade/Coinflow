@@ -1,1 +1,5 @@
-npx lint-staged
+#!/usr/bin/env sh
+# Run lint-staged within each workspace so each app uses its own
+# node_modules and eslint config (avoids cross-workspace resolution errors).
+(cd apps/api && npx lint-staged) || exit 1
+(cd apps/web && npx lint-staged) || exit 1

@@ -13,18 +13,6 @@
     "test": "npm run test --workspaces --if-present",
     "build": "npm run build --workspaces --if-present"
   },
-  "lint-staged": {
-    "apps/api/**/*.ts": [
-      "eslint --fix --config apps/api/eslint.config.mjs",
-      "prettier --write"
-    ],
-    "apps/web/**/*.{ts,tsx}": [
-      "eslint --fix --config apps/web/eslint.config.mjs"
-    ],
-    "apps/web/**/*.{json,md,css,yaml,yml}": [
-      "prettier --write"
-    ]
-  },
   "devDependencies": {
     "@commitlint/cli": "^19.8.1",
     "@commitlint/config-conventional": "^19.8.1",
