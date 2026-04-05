@@ -11,7 +11,11 @@
       "Bash(npx prisma:*)",
       "Bash(npx husky:*)",
       "Bash(npx tsc:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Read(//c/Users/mauri/.claude/projects/C--Projetos-coinflow/**)",
+      "Read(//c/Users/mauri/.claude/projects/C--Projetos-coinflow/memory/**)",
+      "Bash(npm list:*)"
     ]
   }
 }
