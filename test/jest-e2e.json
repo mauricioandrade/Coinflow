@@ -5,5 +5,12 @@
   "testRegex": ".e2e-spec.ts$",
   "transform": {
     "^.+\\.(t|j)s$": "ts-jest"
-  }
+  },
+  "setupFiles": [
+    "./setup-unit.ts"
+  ],
+  "testPathIgnorePatterns": [
+    "/node_modules/",
+    "app.e2e-spec.ts"
+  ]
 }
