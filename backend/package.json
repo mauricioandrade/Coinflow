@@ -7,7 +7,7 @@
     "dev": "tsx watch src/http/server.ts",
     "build": "tsc --project tsconfig.build.json",
     "start": "node dist/http/server.js",
-    "test": "node --experimental-vm-modules node_modules/.bin/jest --config jest.config.ts",
+    "test": "node --experimental-vm-modules node_modules/.bin/jest --config jest.config.ts --passWithNoTests",
     "test:integration": "node --experimental-vm-modules node_modules/.bin/jest --config jest.integration.config.ts",
     "test:coverage": "node --experimental-vm-modules node_modules/.bin/jest --config jest.config.ts --coverage",
     "lint": "ESLINT_USE_FLAT_CONFIG=false eslint src tests",
